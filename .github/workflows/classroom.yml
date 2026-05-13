@@ -1,0 +1,73 @@
+name: GitHub Classroom Workflow
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  repository_dispatch:
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---- Install SPIM ----
+      - name: Install SPIM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y spim
+
+      # ---- Grader 1: compile tests(20 pts) ----
+      - name: Compile tests
+        id: compile
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Compile tests"
+          command: timeout 25 spim -f main.asm > output.txt
+          timeout: 30
+          max-score: 20
+
+      # ---- Grader 2: check if output.txt exists ----u
+      - name: Check if output.txt exists
+        id: output
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Check if output.txt exists"
+          command: test -f output.txt
+          timeout: 10
+          max-score: 10
+
+
+      # Install pytest once for the next graders
+      - name: Install pytest
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      # ---- Grader 3: pytest -m basic (20 pts) ----
+      - name: Basic tests
+        id: basic
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Basic tests"
+          command: pytest -rP 
+          timeout: 10
+          max-score: 20
+
+      # ---- Reporter: show score on Classroom ----
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          COMPILE_RESULTS: "${{ steps.compile.outputs.result }}"
+          OUTPUT_EXISTS: "${{ steps.output.outputs.result }}"
+          BASIC_RESULTS: "${{ steps.basic.outputs.result }}"
+        with:
+          runners: compile,output,basic
